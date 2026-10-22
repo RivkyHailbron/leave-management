@@ -8,6 +8,40 @@
 
 ## 1. החלטות ארכיטקטוניות
 
+### הפרדת שכבות במשימה 3: מה עשיתי ולמה דווקא כך
+המטרה הייתה שלכל אחריות יהיה מקום אחד ברור, בלי להוסיף שכבות שלא פותרות בעיה קיימת.
+
+```
+Controllers/   HTTP בלבד: מקבל בקשה, קורא ל-service, מחזיר תשובה
+Services/      הלוגיקה העסקית (חישוב יתרה, ובהמשך גם מעברי סטטוס)
+Contracts/     DTOs של בקשה ותשובה. זה החוזה הציבורי של ה-API
+Errors/        exceptions עסקיים + handler אחד שממיר אותם ל-ProblemDetails
+Models/, Data/ entities ו-DbContext, ללא שינוי
+```
+
+| אחריות | איפה היא נמצאת | תוצאה ב‑HTTP |
+|---|---|---|
+| **תקינות הקלט**: שדות חובה, `EndDate >= StartDate`, סוג חופשה קיים, `EmployeeId` חיובי | Data annotations ו‑`IValidatableObject` על ה‑DTO | ‏`400` אוטומטי (`ValidationProblemDetails`) דרך `[ApiController]`, עוד לפני שהקוד העסקי רץ |
+| **חוקים עסקיים שדורשים את ה‑DB**: העובד קיים, יש מספיק יתרה | `LeaveRequestService` זורק `NotFoundException` או `BusinessRuleException` | ‏`404` או `422`, דרך `DomainExceptionHandler` |
+| **שגיאה לא צפויה** | `UseExceptionHandler` + `AddProblemDetails` | ‏`500` בפורמט ProblemDetails, בלי stack trace בתשובה |
+
+**החלטות שכדאי לציין:**
+- **ה‑API מחזיר DTOs ולא Entities.** קודם ה‑API החזיר ישירות את ה‑entities של EF, וזה חייב פלסטר (`ReferenceHandler.IgnoreCycles` ו‑`[JsonIgnore]`) בגלל הקשר המעגלי LeaveRequest↔Employee. כשהחוזה מבוסס על entities, כל שינוי בסכמה משנה את ה‑API. עכשיו `LeaveRequestDto` שטוח (`employeeName` במקום אובייקט עובד מקונן), והפלסטר הוסר.
+- **exceptions לשגיאות עסקיות, עם handler מרכזי.** כך ה‑controllers נשארים קצרים, בלי `if/return BadRequest` בכל action. שקלתי Result pattern, אבל בפרויקט בגודל הזה הוא מוסיף הרבה קוד חוזר בלי יתרון ממשי.
+- **422 ולא 400 לחריגה מהיתרה.** הבקשה תקינה מבחינת המבנה שלה, אבל מפרה חוק עסקי. ‏400 שמור לקלט לא תקין. ההבחנה הזו מאפשרת ל‑client להציג הודעה מתאימה לכל מקרה.
+- **קוד אסינכרוני עם `CancellationToken`** לאורך כל הדרך, ו‑`AsNoTracking` בשאילתות קריאה.
+- **ה‑validation של הקלט עבר מה‑controller ל‑DTO**, וכתוצאה מכך נסגרו שני חורים נוספים: סוג חופשה שלא מוגדר ב‑enum (למשל `type: 99`) התקבל, ובקשה בלי `type` קיבלה בשקט ברירת מחדל של Vacation (`0`). עכשיו שני המקרים מחזירים 400.
+
+**מה בחרתי לא לעשות, כדי לא להגיע ל‑over‑engineering:**
+- **Repository מעל EF Core:** ה‑`DbContext` כבר מממש Unit of Work, ו‑`DbSet` כבר משמש כ‑repository. שכבה נוספת רק הייתה מעבירה את הקריאות הלאה ומסתירה יכולות של EF (Include, projection, טרנזקציות).
+- **Interfaces ל‑services:** לכל service יש מימוש אחד, והטסטים מריצים אותו מול DB אמיתי, ולא מול mock. אם יהיה צורך, קל להוסיף interface בהמשך.
+- **Clean Architecture בכמה פרויקטים, MediatR, AutoMapper:** כל אחד מהם מוסיף רכיבים שלא מצדיקים את עצמם ב‑API עם 4 endpoints. המיפוי ל‑DTO נעשה ידנית בשורה אחת (`LeaveRequestDto.From`).
+
+**טסטים בשלוש רמות:**
+- `CreateLeaveRequestDtoTests`: בדיקות יחידה ל‑validation, בלי DB.
+- `LeaveRequestServiceTests`: הלוגיקה העסקית מול DB אמיתי.
+- `LeaveRequestsApiTests`: כל ה‑pipeline דרך `WebApplicationFactory`, מ‑HTTP ועד ה‑DB, כדי לוודא שקודי הסטטוס נכונים. כל טסט מקבל DB משלו, ווידאתי שאף טסט לא כותב ל‑DB של סביבת הפיתוח.
+
 ### תשתית הטסטים: כל טסט רץ על מסד נתונים משלו
 - **הבעיה:** הטסט היחיד שהיה בריפו נכשל עוד לפני שינוי כלשהו בקוד (`55006: cannot drop the currently open database`). ‏`TestDatabase.NewDb()` קרא ל‑`EnsureDeleted()` על מסד ברירת המחדל של הקונטיינר, שהוא אותו מסד שהחיבור פתוח אליו.
 - **התיקון:** כל טסט מקבל מסד נתונים עם שם ייחודי (`test_<guid>`) באותו קונטיינר. הקונטיינר עצמו נשאר משותף כי הוא איטי לעלייה, אבל המסדים נפרדים. כך כל טסט מבודד לגמרי ולא תלוי בסדר ההרצה, וזה גם תנאי מוקדם לטסט ה‑concurrency שמשתמש בכמה חיבורים מקבילים לאותו מסד.
@@ -25,7 +59,7 @@
 - **סינון לפי טווח תאריכים** (`StartDate >= 1/1 && < 1/1 של השנה הבאה`) ולא לפי `StartDate.Year`. סינון לפי טווח יכול להשתמש באינדקס, ופונקציה על העמודה לא יכולה.
 - טווח תאריכים הפוך מחזיר `400 Bad Request`.
 
-**הטסטים שמוכיחים את התיקון** (`LeaveRequestsTests.cs`):
+**הטסטים שמוכיחים את התיקון** (היום ב‑`LeaveRequestServiceTests.cs`):
 - התיקון נעשה ב‑TDD. הקומיט `test: reproduce ...` מכיל רק את הטסטים, והם נכשלים מול הקוד המקורי. הקומיט שאחריו מכיל רק את התיקון. כך ההיסטוריה מראה שהטסטים באמת מזהים את הבאג.
 
 | טסט | מה הוא מוכיח |
@@ -33,10 +67,10 @@
 | `Create_ExceedingRemainingBalance_IsRejected` | התרחיש מהמשימה: 18/20 + 5 ימים ← נדחה |
 | `Create_ExactlyRemainingBalance_Succeeds` | ערך גבול: 18/20 + 2 ימים ← מתקבל (מגן מפני off‑by‑one) |
 | `Create_OnlyApprovedRequestsOfTheSameYearCount` | בקשות ממתינות, בקשות שנדחו ובקשות משנה קודמת לא נספרות |
-| `Create_EndDateBeforeStartDate_IsRejected` | אין מספר ימים שלילי |
+| `EndDateBeforeStartDate_IsInvalid` + `Create_EndDateBeforeStartDate_Returns400` | אין מספר ימים שלילי |
 
 - הטסטים עוברים גם מול PostgreSQL (Testcontainers) וגם מול SQLite.
-- בשלב הזה התיקון נמצא עדיין ב‑Controller, בכוונה. תיקון באג ושינוי מבנה הקוד הם קומיטים נפרדים. הלוגיקה עוברת ל‑service בשלב הפרדת השכבות, והטסטים האלה מגינים על ה‑refactor.
+- את התיקון עשיתי עדיין ב‑Controller, בכוונה: תיקון באג ושינוי מבנה הם קומיטים נפרדים. בשלב הפרדת השכבות הלוגיקה עברה ל‑`LeaveRequestService`, והטסטים האלה הגנו על המעבר. בדיקת התאריכים עברה ל‑validation של ה‑DTO, ונבדקת ב‑`CreateLeaveRequestDtoTests` וב‑API tests.
 
 ## 3. אישור בקשה (approve) ו‑concurrency
 - איך טיפלתי במצבים לא חוקיים (כבר אושר / לא קיים):
