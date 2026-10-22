@@ -1,4 +1,5 @@
 using LeaveManagement.Api.Data;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -18,6 +19,8 @@ namespace LeaveManagement.Tests;
 public sealed class TestDatabase : IAsyncLifetime
 {
     private readonly List<SqliteConnection> _sqliteConnections = new();
+    private readonly List<string> _sqliteFiles = new();
+    private readonly List<WebApplicationFactory<Program>> _factories = new();
     private PostgreSqlContainer? _postgres;
 
     public static bool UseSqlite => string.Equals(
@@ -48,13 +51,7 @@ public sealed class TestDatabase : IAsyncLifetime
         }
         else
         {
-            // A uniquely named database per test: the container's default database
-            // cannot be dropped while connected to it, and unique names keep tests isolated.
-            var connectionString = new NpgsqlConnectionStringBuilder(_postgres!.GetConnectionString())
-            {
-                Database = $"test_{Guid.NewGuid():N}"
-            }.ConnectionString;
-            options.UseNpgsql(connectionString);
+            options.UseNpgsql(NewPostgresConnectionString());
         }
 
         var db = new LeaveDbContext(options.Options);
@@ -62,9 +59,40 @@ public sealed class TestDatabase : IAsyncLifetime
         return db;
     }
 
+    // Starts the full API against its own database, which the app creates and seeds on startup.
+    public HttpClient NewApiClient()
+    {
+        var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            if (UseSqlite)
+            {
+                var file = Path.Combine(Path.GetTempPath(), $"leave_test_{Guid.NewGuid():N}.db");
+                _sqliteFiles.Add(file);
+                builder.UseSetting("ConnectionStrings:LeaveSqlite", $"Data Source={file}");
+            }
+            else
+            {
+                builder.UseSetting("ConnectionStrings:Leave", NewPostgresConnectionString());
+            }
+        });
+        _factories.Add(factory);
+        return factory.CreateClient();
+    }
+
+    // A uniquely named database per call: the container's default database
+    // cannot be dropped while connected to it, and unique names keep tests isolated.
+    private string NewPostgresConnectionString() =>
+        new NpgsqlConnectionStringBuilder(_postgres!.GetConnectionString())
+        {
+            Database = $"test_{Guid.NewGuid():N}"
+        }.ConnectionString;
+
     public async Task DisposeAsync()
     {
+        foreach (var factory in _factories) await factory.DisposeAsync();
         foreach (var connection in _sqliteConnections) connection.Dispose();
+        SqliteConnection.ClearAllPools();
+        foreach (var file in _sqliteFiles) File.Delete(file);
         if (_postgres is not null) await _postgres.DisposeAsync();
     }
 }
