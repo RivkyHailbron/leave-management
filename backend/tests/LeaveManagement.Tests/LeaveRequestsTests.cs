@@ -1,4 +1,5 @@
 using LeaveManagement.Api.Controllers;
+using LeaveManagement.Api.Data;
 using LeaveManagement.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Xunit;
@@ -39,7 +40,88 @@ public class LeaveRequestsTests : IClassFixture<TestDatabase>
         Assert.Single(db.LeaveRequests);
     }
 
-    // TODO (candidate): add a test that proves the balance bug is fixed —
-    // an employee who has already used most of the quota should NOT be able
-    // to create a request that pushes them over the annual quota.
+    [Fact]
+    public void Create_ExceedingRemainingBalance_IsRejected()
+    {
+        using var db = _database.NewDb();
+        var emp = AddEmployee(db, quota: 20);
+        AddRequest(db, emp, LeaveStatus.Approved, new DateTime(2026, 1, 6), new DateTime(2026, 1, 23));
+        var controller = new LeaveRequestsController(db);
+
+        var result = controller.Create(Vacation(emp, new DateTime(2026, 8, 2), new DateTime(2026, 8, 6)));
+
+        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Single(db.LeaveRequests);
+    }
+
+    [Fact]
+    public void Create_ExactlyRemainingBalance_Succeeds()
+    {
+        using var db = _database.NewDb();
+        var emp = AddEmployee(db, quota: 20);
+        AddRequest(db, emp, LeaveStatus.Approved, new DateTime(2026, 1, 6), new DateTime(2026, 1, 23));
+        var controller = new LeaveRequestsController(db);
+
+        var result = controller.Create(Vacation(emp, new DateTime(2026, 8, 2), new DateTime(2026, 8, 3)));
+
+        Assert.IsType<OkObjectResult>(result);
+    }
+
+    [Fact]
+    public void Create_OnlyApprovedRequestsOfTheSameYearCount()
+    {
+        using var db = _database.NewDb();
+        var emp = AddEmployee(db, quota: 10);
+        AddRequest(db, emp, LeaveStatus.Pending, new DateTime(2026, 3, 1), new DateTime(2026, 3, 8));
+        AddRequest(db, emp, LeaveStatus.Rejected, new DateTime(2026, 4, 1), new DateTime(2026, 4, 8));
+        AddRequest(db, emp, LeaveStatus.Approved, new DateTime(2025, 3, 1), new DateTime(2025, 3, 8));
+        var controller = new LeaveRequestsController(db);
+
+        var result = controller.Create(Vacation(emp, new DateTime(2026, 8, 2), new DateTime(2026, 8, 11)));
+
+        Assert.IsType<OkObjectResult>(result);
+    }
+
+    [Fact]
+    public void Create_EndDateBeforeStartDate_IsRejected()
+    {
+        using var db = _database.NewDb();
+        var emp = AddEmployee(db, quota: 20);
+        var controller = new LeaveRequestsController(db);
+
+        var result = controller.Create(Vacation(emp, new DateTime(2026, 8, 6), new DateTime(2026, 8, 2)));
+
+        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Empty(db.LeaveRequests);
+    }
+
+    private static Employee AddEmployee(LeaveDbContext db, int quota)
+    {
+        var emp = new Employee { Name = "Test Emp", AnnualQuota = quota };
+        db.Employees.Add(emp);
+        db.SaveChanges();
+        return emp;
+    }
+
+    private static void AddRequest(LeaveDbContext db, Employee emp, LeaveStatus status, DateTime start, DateTime end)
+    {
+        db.LeaveRequests.Add(new LeaveRequest
+        {
+            EmployeeId = emp.Id,
+            Type = LeaveType.Vacation,
+            StartDate = start,
+            EndDate = end,
+            Days = (end - start).Days + 1,
+            Status = status
+        });
+        db.SaveChanges();
+    }
+
+    private static CreateLeaveRequestDto Vacation(Employee emp, DateTime start, DateTime end) => new()
+    {
+        EmployeeId = emp.Id,
+        Type = LeaveType.Vacation,
+        StartDate = start,
+        EndDate = end
+    };
 }
