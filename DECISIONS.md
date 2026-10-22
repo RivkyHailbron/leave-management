@@ -200,7 +200,16 @@ leave-request-form/  טופס + validator של טווח תאריכים
 **ממצאים נוספים שתיעדתי ולא תיקנתי** (ראו גם סעיף 4):
 - **אין Authentication או Authorization:** כל אחד יכול להגיש בקשה בשם כל עובד, ובהמשך גם לאשר כל בקשה, כולל בקשה של עצמו. זו הפרצה המשמעותית ביותר שנשארה, אבל הטיפול בה הוא פיצ'ר שלם (זהות, תפקידים, מנהל מאשר) ולא תיקון נקודתי.
 - **Credentials בקונפיגורציה:** הסיסמה של ה‑DB כתובה ב‑`appsettings.json` וב‑`docker-compose.yml`. בסביבת פיתוח זה סביר. בפרודקשן הייתי מעבירה אותה ל‑environment variables או ל‑secret store.
-- **Swagger פתוח בכל סביבה:** בפרודקשן הייתי מגביל אותו ל‑Development. לא שיניתי את זה, כי ה‑README מסתמך על Swagger בהרצה דרך Docker.
+- **Swagger פתוח בכל סביבה:** בפרודקשן הייתי מגבילה אותו ל‑Development. לא שיניתי את זה, כי ה‑README מסתמך על Swagger בהרצה דרך Docker.
+- **אין HTTPS:** ה‑API מאזין ב‑HTTP בלבד. בפרודקשן הייתי מוסיפה `UseHttpsRedirection` ו‑HSTS, או מסיימת TLS ב‑reverse proxy.
+
+**דברים נוספים שבדקתי, ונמצאו תקינים או תוקנו במסגרת ה‑refactor:**
+- **Over‑posting:** ה‑API מקבל רק `CreateLeaveRequestDto`, ולא entity. לכן לקוח לא יכול לשלוח בעצמו `status: Approved` או `days`.
+- **קלט לא תקין:** סוג חופשה שלא מוגדר ב‑enum ושדות חסרים נדחים עכשיו ב‑400. קודם הם התקבלו בשקט (ראו סעיף 1).
+- **חשיפת מידע בשגיאות:** שגיאות לא צפויות מוחזרות כ‑ProblemDetails כללי (`500`), בלי stack trace ובלי פרטי DB.
+- **XSS ב‑Frontend:** כל התוכן, כולל הודעות שגיאה מהשרת, מוצג דרך interpolation של Angular, שמבצע escaping. אין שימוש ב‑`innerHTML` או ב‑`bypassSecurityTrust`.
+- **CORS:** מוגבל ל‑origin אחד (`http://localhost:4200`) ולא פתוח לכולם.
+- **SQL גולמי:** אחרי התיקון, ה‑SQL הגולמי היחיד שנשאר הוא נעילות ה‑`FOR UPDATE` ב‑approve, והוא משתמש ב‑`FromSql` / `ExecuteSqlAsync` עם interpolation, כלומר עם פרמטרים.
 
 ## 6. הוראות הרצה
 - ההוראות לא השתנו: `docker compose up --build` להרצת ה‑API וה‑DB, ו‑`cd frontend && npm start` ל‑UI (‏`/api` מועבר ל‑backend דרך `proxy.conf.json`).
