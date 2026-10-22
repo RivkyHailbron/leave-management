@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { LeaveRequest, LeaveStatus, LeaveType } from '../models/leave-request.model';
+import { FeedbackKind } from '../models/feedback.model';
 import { LeaveRequestsComponent } from './leave-requests.component';
 
 describe('LeaveRequestsComponent', () => {
@@ -49,7 +50,7 @@ describe('LeaveRequestsComponent', () => {
     http.expectOne(`/api/leave-requests/${pending.id}/approve`).flush({ ...pending, status: LeaveStatus.Approved });
 
     expect(component.requests()[0].status).toBe(LeaveStatus.Approved);
-    expect(component.feedback()?.kind).toBe('success');
+    expect(component.feedback()?.kind).toBe(FeedbackKind.Success);
     http.expectNone('/api/leave-requests');
   });
 
@@ -59,7 +60,7 @@ describe('LeaveRequestsComponent', () => {
       .expectOne(`/api/leave-requests/${pending.id}/approve`)
       .flush({ status: 409, detail: 'Leave request 7 is already approved.' }, { status: 409, statusText: 'Conflict' });
 
-    expect(component.feedback()).toEqual({ kind: 'error', message: 'Leave request 7 is already approved.' });
+    expect(component.feedback()).toEqual({ kind: FeedbackKind.Error, message: 'Leave request 7 is already approved.' });
     http.expectOne('/api/leave-requests').flush([{ ...pending, status: LeaveStatus.Approved }]);
     expect(component.requests()[0].status).toBe(LeaveStatus.Approved);
   });

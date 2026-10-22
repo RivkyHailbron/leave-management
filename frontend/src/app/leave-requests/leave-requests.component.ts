@@ -12,11 +12,7 @@ import {
 import { LeaveRequestsService } from '../services/leave-requests.service';
 import { apiErrorMessage } from '../services/api-error';
 import { LeaveRequestFormComponent } from '../leave-request-form/leave-request-form.component';
-
-interface Feedback {
-  kind: 'success' | 'error';
-  message: string;
-}
+import { Feedback, FeedbackKind } from '../models/feedback.model';
 
 @Component({
   selector: 'app-leave-requests',
@@ -36,6 +32,7 @@ export class LeaveRequestsComponent implements OnInit {
   private readonly approvingIds = signal<ReadonlySet<number>>(new Set());
 
   readonly LeaveStatus = LeaveStatus;
+  readonly FeedbackKind = FeedbackKind;
   readonly typeLabels = LEAVE_TYPE_LABELS;
   readonly statusLabels = LEAVE_STATUS_LABELS;
 
@@ -77,12 +74,12 @@ export class LeaveRequestsComponent implements OnInit {
         next: (approved) => {
           this.replaceRequest(approved);
           this.feedback.set({
-            kind: 'success',
+            kind: FeedbackKind.Success,
             message: `Request #${approved.id} for ${approved.employeeName} was approved.`
           });
         },
         error: (error: unknown) => {
-          this.feedback.set({ kind: 'error', message: apiErrorMessage(error) });
+          this.feedback.set({ kind: FeedbackKind.Error, message: apiErrorMessage(error) });
           // 409: someone else already processed it, so our copy of the list is stale.
           if (error instanceof HttpErrorResponse && error.status === HttpStatusCode.Conflict) {
             this.load(false);
@@ -94,7 +91,7 @@ export class LeaveRequestsComponent implements OnInit {
   onCreated(request: LeaveRequest): void {
     this.requests.update((requests) => [request, ...requests]);
     this.feedback.set({
-      kind: 'success',
+      kind: FeedbackKind.Success,
       message: `Request #${request.id} for ${request.employeeName} was submitted.`
     });
   }

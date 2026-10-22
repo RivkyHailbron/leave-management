@@ -3,8 +3,8 @@
 <app-leave-request-form (created)="onCreated($event)" />
 
 @if (feedback(); as f) {
-  <div class="alert" [class.alert-success]="f.kind === 'success'" [class.alert-error]="f.kind === 'error'"
-       [attr.role]="f.kind === 'error' ? 'alert' : 'status'">
+  <div class="alert" [class.alert-success]="f.kind === FeedbackKind.Success" [class.alert-error]="f.kind === FeedbackKind.Error"
+       [attr.role]="f.kind === FeedbackKind.Error ? 'alert' : 'status'">
     {{ f.message }}
     <button type="button" class="link" (click)="dismissFeedback()" aria-label="Dismiss">×</button>
   </div>
