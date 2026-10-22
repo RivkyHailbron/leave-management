@@ -1,3 +1,4 @@
+using LeaveManagement.Api.Contracts;
 using LeaveManagement.Api.Data;
 using LeaveManagement.Api.Errors;
 using LeaveManagement.Api.Models;
@@ -14,22 +15,30 @@ public class LeaveRequestService
         _db = db;
     }
 
-    public Task<List<LeaveRequest>> GetAllAsync(CancellationToken cancellationToken) =>
-        _db.LeaveRequests
+    public async Task<IReadOnlyList<LeaveRequestDto>> GetAllAsync(CancellationToken cancellationToken)
+    {
+        var requests = await _db.LeaveRequests
             .AsNoTracking()
             .Include(r => r.Employee)
             .OrderByDescending(r => r.StartDate)
             .ToListAsync(cancellationToken);
 
-    public Task<List<LeaveRequest>> SearchByEmployeeNameAsync(string name, CancellationToken cancellationToken) =>
-        _db.LeaveRequests
+        return requests.Select(LeaveRequestDto.From).ToList();
+    }
+
+    public async Task<IReadOnlyList<LeaveRequestDto>> SearchByEmployeeNameAsync(string name, CancellationToken cancellationToken)
+    {
+        var requests = await _db.LeaveRequests
             .AsNoTracking()
             .Include(r => r.Employee)
             .Where(r => r.Employee!.Name.Contains(name))
             .OrderByDescending(r => r.StartDate)
             .ToListAsync(cancellationToken);
 
-    public async Task<LeaveRequest> CreateAsync(CreateLeaveRequestDto dto, CancellationToken cancellationToken)
+        return requests.Select(LeaveRequestDto.From).ToList();
+    }
+
+    public async Task<LeaveRequestDto> CreateAsync(CreateLeaveRequestDto dto, CancellationToken cancellationToken)
     {
         var employee = await _db.Employees.FindAsync([dto.EmployeeId], cancellationToken)
             ?? throw new NotFoundException($"Employee {dto.EmployeeId} was not found.");
@@ -57,7 +66,7 @@ public class LeaveRequestService
 
         _db.LeaveRequests.Add(request);
         await _db.SaveChangesAsync(cancellationToken);
-        return request;
+        return LeaveRequestDto.From(request);
     }
 
     private Task<int> GetApprovedVacationDaysAsync(int employeeId, int year, CancellationToken cancellationToken)

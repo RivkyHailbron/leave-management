@@ -1,5 +1,5 @@
+using LeaveManagement.Api.Contracts;
 using LeaveManagement.Api.Data;
-using LeaveManagement.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace LeaveManagement.Api.Services;
@@ -13,9 +13,10 @@ public class EmployeeService
         _db = db;
     }
 
-    public Task<List<Employee>> GetAllAsync(CancellationToken cancellationToken) =>
+    public Task<List<EmployeeDto>> GetAllAsync(CancellationToken cancellationToken) =>
         _db.Employees
             .AsNoTracking()
             .OrderBy(e => e.Name)
+            .Select(e => new EmployeeDto(e.Id, e.Name, e.AnnualQuota))
             .ToListAsync(cancellationToken);
 }

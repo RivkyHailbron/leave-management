@@ -1,4 +1,4 @@
-using LeaveManagement.Api.Models;
+using LeaveManagement.Api.Contracts;
 using LeaveManagement.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 

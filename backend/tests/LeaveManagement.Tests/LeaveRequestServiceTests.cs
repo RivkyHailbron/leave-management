@@ -1,3 +1,4 @@
+using LeaveManagement.Api.Contracts;
 using LeaveManagement.Api.Data;
 using LeaveManagement.Api.Errors;
 using LeaveManagement.Api.Models;
@@ -25,6 +26,7 @@ public class LeaveRequestServiceTests : IClassFixture<TestDatabase>
         var created = await service.CreateAsync(Vacation(emp, new DateTime(2026, 3, 1), new DateTime(2026, 3, 3)), default);
 
         Assert.Equal(3, created.Days);
+        Assert.Equal("Test Emp", created.EmployeeName);
         Assert.Equal(LeaveStatus.Pending, created.Status);
         Assert.Single(db.LeaveRequests);
     }

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using LeaveManagement.Api.Contracts;
 using LeaveManagement.Api.Models;
 using Xunit;
 

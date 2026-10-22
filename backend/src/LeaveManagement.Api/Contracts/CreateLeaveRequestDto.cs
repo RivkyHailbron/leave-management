@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
+using LeaveManagement.Api.Models;
 
-namespace LeaveManagement.Api.Models;
+namespace LeaveManagement.Api.Contracts;
 
-// Incoming payload for creating a leave request.
 public class CreateLeaveRequestDto : IValidatableObject
 {
     [Range(1, int.MaxValue)]
