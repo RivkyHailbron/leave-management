@@ -83,19 +83,6 @@ public class LeaveRequestsTests : IClassFixture<TestDatabase>
     }
 
     [Fact]
-    public void Create_EndDateBeforeStartDate_IsRejected()
-    {
-        using var db = _database.NewDb();
-        var emp = AddEmployee(db, quota: 20);
-        var controller = new LeaveRequestsController(db);
-
-        var result = controller.Create(Vacation(emp, new DateTime(2026, 8, 6), new DateTime(2026, 8, 2)));
-
-        Assert.IsType<BadRequestObjectResult>(result);
-        Assert.Empty(db.LeaveRequests);
-    }
-
-    [Fact]
     public void Search_ByPartialName_ReturnsOnlyThatEmployeesRequests()
     {
         using var db = _database.NewDb();

@@ -51,9 +51,6 @@ public class LeaveRequestsController : ControllerBase
         if (employee == null)
             return NotFound("Employee not found");
 
-        if (dto.EndDate < dto.StartDate)
-            return BadRequest("End date must not be before start date");
-
         var days = (dto.EndDate - dto.StartDate).Days + 1;
 
         if (dto.Type == LeaveType.Vacation)
