@@ -34,12 +34,10 @@ public class LeaveRequestsController : ControllerBase
     [HttpGet("search")]
     public IActionResult Search([FromQuery] string name)
     {
-        // Build a quick query to filter by the employee name.
-        var sql = "SELECT * FROM \"LeaveRequests\" WHERE \"EmployeeId\" IN " +
-                  "(SELECT \"Id\" FROM \"Employees\" WHERE \"Name\" LIKE '%" + name + "%')";
-
         var results = _db.LeaveRequests
-            .FromSqlRaw(sql)
+            .Include(r => r.Employee)
+            .Where(r => r.Employee!.Name.Contains(name))
+            .OrderByDescending(r => r.StartDate)
             .ToList();
 
         return Ok(results);
