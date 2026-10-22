@@ -1,0 +1,59 @@
+<form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+  <h3>New request</h3>
+
+  <div class="field">
+    <label for="employeeId">Employee</label>
+    <select id="employeeId" formControlName="employeeId">
+      <option [ngValue]="null" disabled>Select an employee</option>
+      @for (e of employees(); track e.id) {
+        <option [ngValue]="e.id">{{ e.name }}</option>
+      }
+    </select>
+    @if (showError('employeeId')) {
+      <small class="error">Please select an employee.</small>
+    }
+  </div>
+
+  <div class="field">
+    <label for="type">Leave type</label>
+    <select id="type" formControlName="type">
+      <option [ngValue]="null" disabled>Select a leave type</option>
+      @for (t of leaveTypes; track t.value) {
+        <option [ngValue]="t.value">{{ t.label }}</option>
+      }
+    </select>
+    @if (showError('type')) {
+      <small class="error">Please select a leave type.</small>
+    }
+  </div>
+
+  <div class="field">
+    <label for="startDate">Start date</label>
+    <input id="startDate" type="date" formControlName="startDate" />
+    @if (showError('startDate')) {
+      <small class="error">Start date is required.</small>
+    }
+  </div>
+
+  <div class="field">
+    <label for="endDate">End date</label>
+    <input id="endDate" type="date" formControlName="endDate" [min]="form.controls.startDate.value" />
+    @if (showError('endDate')) {
+      <small class="error">End date is required.</small>
+    } @else if (showDateRangeError) {
+      <small class="error">End date cannot be before the start date.</small>
+    }
+  </div>
+
+  @if (days(); as d) {
+    <p class="days">{{ d }} day(s)</p>
+  }
+
+  @if (serverError()) {
+    <div class="alert alert-error" role="alert">{{ serverError() }}</div>
+  }
+
+  <button type="submit" [disabled]="submitting()">
+    {{ submitting() ? 'Submitting…' : 'Submit request' }}
+  </button>
+</form>

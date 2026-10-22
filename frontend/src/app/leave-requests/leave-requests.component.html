@@ -1,5 +1,7 @@
 <h2>Leave Requests</h2>
 
+<app-leave-request-form (created)="onCreated($event)" />
+
 @if (feedback(); as f) {
   <div class="alert" [class.alert-success]="f.kind === 'success'" [class.alert-error]="f.kind === 'error'"
        [attr.role]="f.kind === 'error' ? 'alert' : 'status'">

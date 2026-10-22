@@ -11,6 +11,7 @@ import {
 } from '../models/leave-request.model';
 import { LeaveRequestsService } from '../services/leave-requests.service';
 import { apiErrorMessage } from '../services/api-error';
+import { LeaveRequestFormComponent } from '../leave-request-form/leave-request-form.component';
 
 interface Feedback {
   kind: 'success' | 'error';
@@ -20,7 +21,7 @@ interface Feedback {
 @Component({
   selector: 'app-leave-requests',
   standalone: true,
-  imports: [DatePipe],
+  imports: [DatePipe, LeaveRequestFormComponent],
   templateUrl: './leave-requests.component.html',
   styleUrls: ['./leave-requests.component.css']
 })
@@ -88,6 +89,14 @@ export class LeaveRequestsComponent implements OnInit {
           }
         }
       });
+  }
+
+  onCreated(request: LeaveRequest): void {
+    this.requests.update((requests) => [request, ...requests]);
+    this.feedback.set({
+      kind: 'success',
+      message: `Request #${request.id} for ${request.employeeName} was submitted.`
+    });
   }
 
   dismissFeedback(): void {
