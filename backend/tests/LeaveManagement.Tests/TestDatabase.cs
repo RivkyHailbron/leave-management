@@ -1,6 +1,7 @@
 using LeaveManagement.Api.Data;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Testcontainers.PostgreSql;
 using Xunit;
 
@@ -47,11 +48,16 @@ public sealed class TestDatabase : IAsyncLifetime
         }
         else
         {
-            options.UseNpgsql(_postgres!.GetConnectionString());
+            // A uniquely named database per test: the container's default database
+            // cannot be dropped while connected to it, and unique names keep tests isolated.
+            var connectionString = new NpgsqlConnectionStringBuilder(_postgres!.GetConnectionString())
+            {
+                Database = $"test_{Guid.NewGuid():N}"
+            }.ConnectionString;
+            options.UseNpgsql(connectionString);
         }
 
         var db = new LeaveDbContext(options.Options);
-        if (!UseSqlite) db.Database.EnsureDeleted();
         db.Database.EnsureCreated();
         return db;
     }
