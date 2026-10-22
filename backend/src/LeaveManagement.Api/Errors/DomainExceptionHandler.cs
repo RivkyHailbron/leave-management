@@ -21,6 +21,7 @@ public sealed class DomainExceptionHandler : IExceptionHandler
         var status = exception switch
         {
             NotFoundException => StatusCodes.Status404NotFound,
+            ConflictException => StatusCodes.Status409Conflict,
             _ => StatusCodes.Status422UnprocessableEntity
         };
 

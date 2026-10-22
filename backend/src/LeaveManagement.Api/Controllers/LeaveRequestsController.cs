@@ -26,4 +26,8 @@ public class LeaveRequestsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create(CreateLeaveRequestDto dto, CancellationToken cancellationToken) =>
         Ok(await _service.CreateAsync(dto, cancellationToken));
+
+    [HttpPost("{id:int}/approve")]
+    public async Task<IActionResult> Approve(int id, CancellationToken cancellationToken) =>
+        Ok(await _service.ApproveAsync(id, cancellationToken));
 }

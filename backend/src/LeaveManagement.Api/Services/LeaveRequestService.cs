@@ -69,6 +69,48 @@ public class LeaveRequestService
         return LeaveRequestDto.From(request);
     }
 
+    public async Task<LeaveRequestDto> ApproveAsync(int id, CancellationToken cancellationToken)
+    {
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+
+        var request = await FindForUpdateAsync(id, cancellationToken)
+            ?? throw new NotFoundException($"Leave request {id} was not found.");
+
+        if (request.Status != LeaveStatus.Pending)
+            throw new ConflictException($"Leave request {id} is already {request.Status.ToString().ToLowerInvariant()}.");
+
+        await LockEmployeeAsync(request.EmployeeId, cancellationToken);
+        var employee = await _db.Employees.SingleAsync(e => e.Id == request.EmployeeId, cancellationToken);
+
+        if (request.Type == LeaveType.Vacation)
+        {
+            var used = await GetApprovedVacationDaysAsync(employee.Id, request.StartDate.Year, cancellationToken);
+            if (used + request.Days > employee.AnnualQuota)
+                throw new BusinessRuleException(
+                    $"Approving would exceed the vacation quota: {employee.AnnualQuota - used} day(s) left, {request.Days} requested.");
+        }
+
+        request.Status = LeaveStatus.Approved;
+        await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return LeaveRequestDto.From(request);
+    }
+
+    // Row locks (request, then employee) serialize concurrent approvals. See DECISIONS.md §3.
+    private Task<LeaveRequest?> FindForUpdateAsync(int id, CancellationToken cancellationToken) =>
+        _db.Database.IsNpgsql()
+            ? _db.LeaveRequests
+                .FromSql($"""SELECT * FROM "LeaveRequests" WHERE "Id" = {id} FOR UPDATE""")
+                .SingleOrDefaultAsync(cancellationToken)
+            : _db.LeaveRequests.SingleOrDefaultAsync(r => r.Id == id, cancellationToken);
+
+    private Task LockEmployeeAsync(int employeeId, CancellationToken cancellationToken) =>
+        _db.Database.IsNpgsql()
+            ? _db.Database.ExecuteSqlAsync(
+                $"""SELECT 1 FROM "Employees" WHERE "Id" = {employeeId} FOR UPDATE""", cancellationToken)
+            : Task.CompletedTask;
+
     private Task<int> GetApprovedVacationDaysAsync(int employeeId, int year, CancellationToken cancellationToken)
     {
         var yearStart = new DateTime(year, 1, 1);

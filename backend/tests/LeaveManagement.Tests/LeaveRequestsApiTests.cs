@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using LeaveManagement.Api.Contracts;
+using LeaveManagement.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Xunit;
 
@@ -77,6 +78,44 @@ public class LeaveRequestsApiTests : IClassFixture<TestDatabase>
             new { employeeId = 1, startDate = "2026-08-02", endDate = "2026-08-04" });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Approve_PendingRequest_Returns200WithApprovedRequest()
+    {
+        var client = _database.NewApiClient();
+        var yossiId = await EmployeeIdAsync(client, "Yossi Cohen");
+        var created = await (await client.PostAsJsonAsync("/api/leave-requests",
+            new { employeeId = yossiId, type = 0, startDate = "2026-08-02", endDate = "2026-08-04" }))
+            .Content.ReadFromJsonAsync<LeaveRequestDto>();
+
+        var response = await client.PostAsync($"/api/leave-requests/{created!.Id}/approve", null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var approved = await response.Content.ReadFromJsonAsync<LeaveRequestDto>();
+        Assert.Equal(LeaveStatus.Approved, approved!.Status);
+    }
+
+    [Fact]
+    public async Task Approve_AlreadyApprovedRequest_Returns409()
+    {
+        var client = _database.NewApiClient();
+        var requests = await client.GetFromJsonAsync<List<LeaveRequestDto>>("/api/leave-requests");
+        var approvedId = requests!.First(r => r.Status == LeaveStatus.Approved).Id;
+
+        var response = await client.PostAsync($"/api/leave-requests/{approvedId}/approve", null);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Approve_UnknownRequest_Returns404()
+    {
+        var client = _database.NewApiClient();
+
+        var response = await client.PostAsync("/api/leave-requests/999/approve", null);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     private static async Task<int> EmployeeIdAsync(HttpClient client, string name)
