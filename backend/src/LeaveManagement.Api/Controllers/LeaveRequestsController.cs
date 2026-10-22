@@ -1,87 +1,29 @@
-using LeaveManagement.Api.Data;
 using LeaveManagement.Api.Models;
+using LeaveManagement.Api.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace LeaveManagement.Api.Controllers;
 
-// NOTE: This controller was written quickly for a POC.
-// It does data access, business logic and validation all in one place.
 [ApiController]
 [Route("api/leave-requests")]
 public class LeaveRequestsController : ControllerBase
 {
-    private readonly LeaveDbContext _db;
+    private readonly LeaveRequestService _service;
 
-    public LeaveRequestsController(LeaveDbContext db)
+    public LeaveRequestsController(LeaveRequestService service)
     {
-        _db = db;
+        _service = service;
     }
 
-    // GET /api/leave-requests
     [HttpGet]
-    public IActionResult GetAll()
-    {
-        var all = _db.LeaveRequests
-            .Include(r => r.Employee)
-            .OrderByDescending(r => r.StartDate)
-            .ToList();
-        return Ok(all);
-    }
+    public async Task<IActionResult> GetAll(CancellationToken cancellationToken) =>
+        Ok(await _service.GetAllAsync(cancellationToken));
 
-    // GET /api/leave-requests/search?name=Dana
-    // Lets the UI quickly find requests by employee name.
     [HttpGet("search")]
-    public IActionResult Search([FromQuery] string name)
-    {
-        var results = _db.LeaveRequests
-            .Include(r => r.Employee)
-            .Where(r => r.Employee!.Name.Contains(name))
-            .OrderByDescending(r => r.StartDate)
-            .ToList();
+    public async Task<IActionResult> Search([FromQuery] string name, CancellationToken cancellationToken) =>
+        Ok(await _service.SearchByEmployeeNameAsync(name, cancellationToken));
 
-        return Ok(results);
-    }
-
-    // POST /api/leave-requests
     [HttpPost]
-    public IActionResult Create([FromBody] CreateLeaveRequestDto dto)
-    {
-        var employee = _db.Employees.FirstOrDefault(e => e.Id == dto.EmployeeId);
-        if (employee == null)
-            return NotFound("Employee not found");
-
-        var days = (dto.EndDate - dto.StartDate).Days + 1;
-
-        if (dto.Type == LeaveType.Vacation)
-        {
-            var yearStart = new DateTime(dto.StartDate.Year, 1, 1);
-            var nextYearStart = yearStart.AddYears(1);
-            var used = _db.LeaveRequests
-                .Where(r => r.EmployeeId == dto.EmployeeId
-                            && r.Type == LeaveType.Vacation
-                            && r.Status == LeaveStatus.Approved
-                            && r.StartDate >= yearStart
-                            && r.StartDate < nextYearStart)
-                .Sum(r => r.Days);
-
-            if (used + days > employee.AnnualQuota)
-                return BadRequest("Not enough vacation balance");
-        }
-
-        var request = new LeaveRequest
-        {
-            EmployeeId = dto.EmployeeId,
-            Type = dto.Type,
-            StartDate = dto.StartDate,
-            EndDate = dto.EndDate,
-            Days = days,
-            Status = LeaveStatus.Pending
-        };
-
-        _db.LeaveRequests.Add(request);
-        _db.SaveChanges();
-
-        return Ok(request);
-    }
+    public async Task<IActionResult> Create(CreateLeaveRequestDto dto, CancellationToken cancellationToken) =>
+        Ok(await _service.CreateAsync(dto, cancellationToken));
 }

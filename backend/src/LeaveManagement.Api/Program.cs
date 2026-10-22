@@ -1,5 +1,7 @@
 using System.Text.Json.Serialization;
 using LeaveManagement.Api.Data;
+using LeaveManagement.Api.Errors;
+using LeaveManagement.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,6 +19,12 @@ builder.Services.AddDbContext<LeaveDbContext>(options =>
     else
         options.UseNpgsql(builder.Configuration.GetConnectionString("Leave"));
 });
+
+builder.Services.AddScoped<LeaveRequestService>();
+builder.Services.AddScoped<EmployeeService>();
+
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<DomainExceptionHandler>();
 
 // POC returns EF entities straight from the controller, which have circular
 // navigations (LeaveRequest <-> Employee). Tolerate the cycles so the app runs;
@@ -44,6 +52,7 @@ using (var scope = app.Services.CreateScope())
     LeaveDbContext.Seed(db);
 }
 
+app.UseExceptionHandler();
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseCors("AllowAngular");

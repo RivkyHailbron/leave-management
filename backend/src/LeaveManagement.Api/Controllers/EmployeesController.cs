@@ -1,24 +1,20 @@
-using LeaveManagement.Api.Data;
+using LeaveManagement.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LeaveManagement.Api.Controllers;
 
-// Read-only lookup so the UI can offer an employee picker.
 [ApiController]
 [Route("api/employees")]
 public class EmployeesController : ControllerBase
 {
-    private readonly LeaveDbContext _db;
+    private readonly EmployeeService _service;
 
-    public EmployeesController(LeaveDbContext db)
+    public EmployeesController(EmployeeService service)
     {
-        _db = db;
+        _service = service;
     }
 
-    // GET /api/employees
     [HttpGet]
-    public IActionResult GetAll()
-    {
-        return Ok(_db.Employees.ToList());
-    }
+    public async Task<IActionResult> GetAll(CancellationToken cancellationToken) =>
+        Ok(await _service.GetAllAsync(cancellationToken));
 }
