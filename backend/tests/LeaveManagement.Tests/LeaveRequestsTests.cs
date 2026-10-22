@@ -95,9 +95,40 @@ public class LeaveRequestsTests : IClassFixture<TestDatabase>
         Assert.Empty(db.LeaveRequests);
     }
 
-    private static Employee AddEmployee(LeaveDbContext db, int quota)
+    [Fact]
+    public void Search_ByPartialName_ReturnsOnlyThatEmployeesRequests()
     {
-        var emp = new Employee { Name = "Test Emp", AnnualQuota = quota };
+        using var db = _database.NewDb();
+        var dana = AddEmployee(db, quota: 20, name: "Dana Levi");
+        var yossi = AddEmployee(db, quota: 20, name: "Yossi Cohen");
+        AddRequest(db, dana, LeaveStatus.Pending, new DateTime(2026, 3, 1), new DateTime(2026, 3, 2));
+        AddRequest(db, yossi, LeaveStatus.Pending, new DateTime(2026, 4, 1), new DateTime(2026, 4, 2));
+        var controller = new LeaveRequestsController(db);
+
+        var results = SearchResults(controller.Search("Dan"));
+
+        Assert.Equal(dana.Id, Assert.Single(results).EmployeeId);
+    }
+
+    [Fact]
+    public void Search_WithSqlInjectionPayload_IsTreatedAsPlainText()
+    {
+        using var db = _database.NewDb();
+        var dana = AddEmployee(db, quota: 20, name: "Dana Levi");
+        AddRequest(db, dana, LeaveStatus.Pending, new DateTime(2026, 3, 1), new DateTime(2026, 3, 2));
+        var controller = new LeaveRequestsController(db);
+
+        var results = SearchResults(controller.Search("nobody%') OR 1=1 --"));
+
+        Assert.Empty(results);
+    }
+
+    private static IEnumerable<LeaveRequest> SearchResults(IActionResult result) =>
+        Assert.IsAssignableFrom<IEnumerable<LeaveRequest>>(Assert.IsType<OkObjectResult>(result).Value);
+
+    private static Employee AddEmployee(LeaveDbContext db, int quota, string name = "Test Emp")
+    {
+        var emp = new Employee { Name = name, AnnualQuota = quota };
         db.Employees.Add(emp);
         db.SaveChanges();
         return emp;
