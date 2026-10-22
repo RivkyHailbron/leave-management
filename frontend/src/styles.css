@@ -25,3 +25,19 @@ th, td {
 button {
   cursor: pointer;
 }
+
+.alert {
+  padding: 8px 12px;
+  margin: 12px 0;
+  border-radius: 4px;
+}
+
+.alert-error {
+  background: #fde8e8;
+  color: #9b1c1c;
+}
+
+.alert-success {
+  background: #def7ec;
+  color: #03543f;
+}
