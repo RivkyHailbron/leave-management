@@ -1,5 +1,13 @@
 <h2>Leave Requests</h2>
 
+@if (feedback(); as f) {
+  <div class="alert" [class.alert-success]="f.kind === 'success'" [class.alert-error]="f.kind === 'error'"
+       [attr.role]="f.kind === 'error' ? 'alert' : 'status'">
+    {{ f.message }}
+    <button type="button" class="link" (click)="dismissFeedback()" aria-label="Dismiss">×</button>
+  </div>
+}
+
 @if (loading()) {
   <div>Loading...</div>
 } @else if (loadError()) {
@@ -33,7 +41,9 @@
           <td>{{ statusLabels[r.status] }}</td>
           <td>
             @if (r.status === LeaveStatus.Pending) {
-              <button type="button" (click)="approve(r.id)">Approve</button>
+              <button type="button" [disabled]="isApproving(r.id)" (click)="approve(r)">
+                {{ isApproving(r.id) ? 'Approving…' : 'Approve' }}
+              </button>
             }
           </td>
         </tr>

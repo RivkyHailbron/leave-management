@@ -1,5 +1,6 @@
 import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { HttpErrorResponse, HttpStatusCode } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import {
@@ -10,6 +11,11 @@ import {
 } from '../models/leave-request.model';
 import { LeaveRequestsService } from '../services/leave-requests.service';
 import { apiErrorMessage } from '../services/api-error';
+
+interface Feedback {
+  kind: 'success' | 'error';
+  message: string;
+}
 
 @Component({
   selector: 'app-leave-requests',
@@ -25,6 +31,8 @@ export class LeaveRequestsComponent implements OnInit {
   readonly requests = signal<LeaveRequest[]>([]);
   readonly loading = signal(false);
   readonly loadError = signal<string | null>(null);
+  readonly feedback = signal<Feedback | null>(null);
+  private readonly approvingIds = signal<ReadonlySet<number>>(new Set());
 
   readonly LeaveStatus = LeaveStatus;
   readonly typeLabels = LEAVE_TYPE_LABELS;
@@ -34,8 +42,8 @@ export class LeaveRequestsComponent implements OnInit {
     this.load();
   }
 
-  load(): void {
-    this.loading.set(true);
+  load(showSpinner = true): void {
+    this.loading.set(showSpinner);
     this.loadError.set(null);
 
     this.leaveRequests
@@ -50,10 +58,52 @@ export class LeaveRequestsComponent implements OnInit {
       });
   }
 
-  approve(id: number): void {
+  isApproving(id: number): boolean {
+    return this.approvingIds().has(id);
+  }
+
+  approve(request: LeaveRequest): void {
+    this.setApproving(request.id, true);
+    this.feedback.set(null);
+
     this.leaveRequests
-      .approve(id)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.load());
+      .approve(request.id)
+      .pipe(
+        finalize(() => this.setApproving(request.id, false)),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe({
+        next: (approved) => {
+          this.replaceRequest(approved);
+          this.feedback.set({
+            kind: 'success',
+            message: `Request #${approved.id} for ${approved.employeeName} was approved.`
+          });
+        },
+        error: (error: unknown) => {
+          this.feedback.set({ kind: 'error', message: apiErrorMessage(error) });
+          // 409: someone else already processed it, so our copy of the list is stale.
+          if (error instanceof HttpErrorResponse && error.status === HttpStatusCode.Conflict) {
+            this.load(false);
+          }
+        }
+      });
+  }
+
+  dismissFeedback(): void {
+    this.feedback.set(null);
+  }
+
+  private replaceRequest(updated: LeaveRequest): void {
+    this.requests.update((requests) => requests.map((r) => (r.id === updated.id ? updated : r)));
+  }
+
+  private setApproving(id: number, approving: boolean): void {
+    this.approvingIds.update((ids) => {
+      const next = new Set(ids);
+      if (approving) next.add(id);
+      else next.delete(id);
+      return next;
+    });
   }
 }

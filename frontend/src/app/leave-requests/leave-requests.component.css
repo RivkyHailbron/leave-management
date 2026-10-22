@@ -9,3 +9,15 @@ button {
 button:hover {
   background: #186faf;
 }
+
+button:disabled {
+  background: #9fb3c8;
+  cursor: wait;
+}
+
+button.link {
+  background: none;
+  color: inherit;
+  float: right;
+  padding: 0 4px;
+}
